@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PyScript Rechner</title>
     <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
-    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+    <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
 </head>
 <body>
     <h1>Einfacher PyScript Rechner</h1>
@@ -16,13 +16,12 @@
     <p id="result"></p>
 
     <py-script>
-        from js import document
+        import socket
+        hostname = socket.gethostname()
+        IPAddr = socket.gethostbyname(hostname)
 
-        def calculate():
-            num1 = float(document.getElementById("num1").value)
-            num2 = float(document.getElementById("num2").value)
-            result = num1 + num2
-            document.getElementById("result").innerText = f"Das Ergebnis ist: {result}"
+        print("Your Computer Name is:" + hostname)
+        print("Your Computer IP Address is:" + IPAddr)
             
 
     </py-script>
