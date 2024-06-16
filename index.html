@@ -1,29 +1,206 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyScript Rechner</title>
-    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
-    <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+    <title>D3.js Data Visualization</title>
+    <style>
+body {
+    font-family: Arial, sans-serif;
+    background-color: black;
+}
+
+#chart {
+    width: 100%;
+    height: 80vh;
+    margin: auto;
+}
+
+.link {
+    stroke: #999;
+    stroke-opacity: 0.6;
+}
+
+.node {
+    stroke: #fff;
+    stroke-width: 1.5px;
+}
+
+.labels {
+    font: 12px sans-serif;
+    pointer-events: none;
+}
+
+#info {
+    margin: 20px;
+    font-size: 14px;
+}
+
+    </style>
 </head>
 <body>
-    <h1>Einfacher PyScript Rechner</h1>
-    <p>Gib zwei Zahlen ein und klicke auf "Berechnen" um das Ergebnis der Addition zu sehen:</p>
-    <input type="number" id="num1" placeholder="Zahl 1">
-    <input type="number" id="num2" placeholder="Zahl 2">
-    <button py-click="calculate()">Berechnen</button>
-    <p id="result"></p>
+    <h1>Network Diagram mit D3.js</h1>
+    <div id="chart">
+        <svg></svg>
+    </div>
+    <div id="info"></div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+// Funktion zum Parsen der URL-Parameter
+function getUrlParams() {
+    const params = new URLSearchParams(window.location.search);
 
-    <py-script>
-        import socket
-        hostname = socket.gethostname()
-        IPAddr = socket.gethostbyname(hostname)
+    let nodesParam = params.get('nodes');
+    let linksParam = params.get('links');
+    console.log(nodesParam)
+    console.log(linksParam)
+    return {
+        nodes: nodesParam ? JSON.parse(decodeURIComponent(nodesParam)) : [],
+        links: linksParam ? JSON.parse(decodeURIComponent(linksParam)) : []
+    };
+}
 
-        print("Your Computer Name is:" + hostname)
-        print("Your Computer IP Address is:" + IPAddr)
-            
+// Daten aus der URL holen
+const { nodes, links } = getUrlParams();
 
-    </py-script>
+// SVG-Element konfigurieren
+const svg = d3.select("svg")
+    .attr("width", "100%")
+    .attr("height", "100%")
+    .attr("viewBox", "0 0 1000 500")
+    .attr("preserveAspectRatio", "xMidYMid meet");
+
+const width = +svg.attr("viewBox").split(" ")[2];
+const height = +svg.attr("viewBox").split(" ")[3];
+
+// Farbskala
+const colorScale = d3.scaleSequential(d3.interpolateLab("#ffffff", "#9575cd"))
+    .domain([0, d3.max(nodes, d => d.value)]);
+
+// Größenskala
+const sizeScale = d3.scaleLinear()
+    .domain([0, d3.max(nodes, d => d.value)])
+    .range([5, 20]); // Bereich anpassen
+
+// Simulation mit Kräften erstellen
+const simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id(d => d.id).distance(50)) // Link-Distanz anpassen
+    .force("charge", d3.forceManyBody().strength(-50)) // Abstoßungsstärke anpassen
+    .force("center", d3.forceCenter(width / 2, height / 2));
+
+// Links zum SVG hinzufügen
+const link = svg.append("g")
+    .attr("class", "links")
+    .selectAll("path")
+    .data(links)
+    .enter().append("path")
+    .attr("class", "link")
+    .attr("fill", "none")
+    .attr("stroke", "#999")
+    .attr("stroke-opacity", 0.6)
+    .attr("stroke-width", 2)
+    .attr("marker-end", "url(#arrow)")
+    .on("click", function(event, d) {
+        d3.select("#info").html(`<strong>Link Info:</strong><br><a href=${d.signature} target="_blank">See Transaction on Solscan</a> <br> Sender Wallet: ${d.targetWalletAdress } <br> sent ${d.tokenAmountTXN}  <br> receiver Wallet ${d.toUserAccount}`);
+        event.stopPropagation();
+    });
+
+// Pfeilkopf-Markierung hinzufügen
+svg.append("defs").selectAll("marker")
+    .data(["arrow"])
+    .enter().append("marker")
+    .attr("id", "arrow")
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 8)
+    .attr("refY", 0)
+    .attr("markerWidth", 6)
+    .attr("markerHeight", 6)
+    .attr("orient", "auto")
+    .append("path")
+    .attr("d", "M0,-5L10,0L0,5")
+    .attr("fill", "#999");
+
+// Knoten zum SVG hinzufügen
+const node = svg.append("g")
+    .attr("class", "nodes")
+    .selectAll("circle")
+    .data(nodes)
+    .enter().append("circle")
+    .attr("class", "node")
+    .attr("r", d => sizeScale(d.value))
+    .attr("fill", d => colorScale(d.value))
+    .call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended))
+    .on("click", function(event, d) {
+        d3.select("#info").html(`<strong>Node Info:</strong><br>Name: <a href=https://solscan.io/account/${d.walletAddress} target="_blank">${d.walletAddress}</a> <br> Token Amount: ${d.value} <br> Token Amount %: ${(d.percOfSup).toFixed(3)}% of Supply`);
+        event.stopPropagation();
+    });
+
+// Labels zu den Knoten hinzufügen
+const label = svg.append("g")
+    .attr("class", "labels")
+    .selectAll("text")
+    .data(nodes)
+    .enter().append("text")
+    .attr("dy", -15)
+    .attr("dx", 10)
+    .attr("fill", "white") // Setze die Farbe auf weiß
+    .text(d => d.id);
+
+// Positionen bei jedem Ticken der Simulation aktualisieren
+simulation.on("tick", () => {
+    link.attr("d", d => {
+        const deltaX = d.target.x - d.source.x;
+        const deltaY = d.target.y - d.source.y;
+        const dist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        const normX = deltaX / dist;
+        const normY = deltaY / dist;
+        const sourcePadding = 12;
+        const targetPadding = 12;
+        const sourceX = d.source.x + (sourcePadding * normX);
+        const sourceY = d.source.y + (sourcePadding * normY);
+        const targetX = d.target.x - (targetPadding * normX);
+        const targetY = d.target.y - (targetPadding * normY);
+        return `M${sourceX},${sourceY}L${targetX},${targetY}`;
+    });
+
+    node.attr("cx", d => {
+        d.x = Math.max(10, Math.min(width - 10, d.x));
+        return d.x;
+    })
+    .attr("cy", d => {
+        d.y = Math.max(10, Math.min(height - 10, d.y));
+        return d.y;
+    });
+
+    label.attr("x", d => d.x)
+        .attr("y", d => d.y);
+});
+
+function dragstarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+    // Reduce the repulsion force while dragging
+    simulation.force("charge").strength(-5);
+    simulation.force("link").distance(50);
+}
+
+function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+    simulation.force("charge").strength(0);
+}
+
+function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+    simulation.force("charge").strength(-25);
+}
+
+    </script>
 </body>
 </html>
